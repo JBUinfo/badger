@@ -209,7 +209,14 @@ func (mt *memTable) UpdateSkipList() error {
 	if endOff < mt.wal.size.Load() && mt.opt.ReadOnly {
 		return y.Wrapf(ErrTruncateNeeded, "end offset: %d < size: %d", endOff, mt.wal.size.Load())
 	}
-	return mt.wal.Truncate(int64(endOff))
+	if err := mt.wal.Truncate(int64(endOff)); err != nil {
+		if isUserMappedFileError(err) {
+			mt.opt.Warningf("Skipping WAL truncation for %s: %v", mt.wal.Fd.Name(), err)
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 // IncrRef increases the refcount
